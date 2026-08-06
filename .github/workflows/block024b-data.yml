@@ -2,6 +2,7 @@ name: block024b-data
 on:
   push:
     branches: [tmp-block024b-data]
+  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,7 +18,7 @@ jobs:
           curl -L --fail --retry 3 'https://huggingface.co/datasets/kjhq/China-Stock-Symbols-and-Metadata/resolve/main/china.csv' -o china.csv
           curl -L --fail --retry 3 'https://raw.githubusercontent.com/guidebee/china-stock-data/main/data/company/companies.json' -o companies.json
           python3 - <<'PY'
-          import csv, json, re
+          import csv, json
           with open('companies.json', encoding='utf-8') as f:
               market = {str(x['code']).zfill(6): x for x in json.load(f)}
           rows=[]
