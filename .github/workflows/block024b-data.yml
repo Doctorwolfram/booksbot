@@ -1,0 +1,56 @@
+name: block024b-data
+on:
+  push:
+    branches: [tmp-block024b-data]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ranked producer-manufacturing slice
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 'https://huggingface.co/datasets/kjhq/China-Stock-Symbols-and-Metadata/resolve/main/china.csv' -o china.csv
+          curl -L --fail --retry 3 'https://raw.githubusercontent.com/guidebee/china-stock-data/main/data/company/companies.json' -o companies.json
+          python3 - <<'PY'
+          import csv, json, re
+          with open('companies.json', encoding='utf-8') as f:
+              market = {str(x['code']).zfill(6): x for x in json.load(f)}
+          rows=[]
+          with open('china.csv', encoding='utf-8-sig', newline='') as f:
+              for r in csv.DictReader(f):
+                  if r.get('sector') != 'Producer manufacturing':
+                      continue
+                  code=str(r.get('ticker','')).split('.')[0].zfill(6)
+                  m=market.get(code)
+                  if not m or not m.get('mktcap') or float(m['mktcap']) <= 0:
+                      continue
+                  exchange='SZSE' if str(m.get('symbol','')).startswith('sz') else 'SSE' if str(m.get('symbol','')).startswith('sh') else ''
+                  if exchange not in {'SZSE','SSE'}:
+                      continue
+                  rows.append({'code':code,'name':r['name'].strip(),'market':exchange,'cn_name':m.get('name',''),'stock_type':m.get('stock_type',''),'mktcap_kcny':float(m['mktcap'])})
+          rows.sort(key=lambda x:(-x['mktcap_kcny'],x['code']))
+          for i,r in enumerate(rows,1): r['source_rank']=i
+          selected=rows[163:326]
+          reserve=rows[326:341]
+          assert len(selected)==163, len(selected)
+          assert [r['source_rank'] for r in selected]==list(range(164,327))
+          assert len({r['code'] for r in selected})==163
+          fields=['source_rank','code','name','market','cn_name','stock_type','mktcap_kcny']
+          for fn,data in [('selected.csv',selected),('reserve.csv',reserve),('all_ranked.csv',rows)]:
+              with open(fn,'w',encoding='utf-8',newline='') as f:
+                  w=csv.DictWriter(f,fieldnames=fields); w.writeheader(); w.writerows(data)
+          print({'universe':len(rows),'selected':len(selected),'first':selected[0],'last':selected[-1]})
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: block024b-ranked-data
+          path: |
+            selected.csv
+            reserve.csv
+            all_ranked.csv
+          retention-days: 1
