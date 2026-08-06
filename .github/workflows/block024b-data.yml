@@ -1,7 +1,6 @@
 name: block024b-data
 on:
-  push:
-    branches: [master]
+  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
